@@ -33,6 +33,7 @@
     <packaging>jar</packaging>
 
     <name>aliyun-ons-1.x-plugin</name>
+    <url>http://maven.apache.org</url>
 
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
