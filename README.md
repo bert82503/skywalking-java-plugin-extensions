@@ -6,6 +6,7 @@ Including
 1. Resin 4
 1. Oracle JDBC Driver
 1. Aliyun ONS 1.x
+1. Aliyun ONS 2.x
 
 To be clear, these plugins have no license issue, but need Apache 2.0 uncompatible license Jar file to compile, which is not allowed to do in Apache.
 

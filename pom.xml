@@ -11,6 +11,7 @@
         <module>resin-3.x-plugin</module>
         <module>resin-4.x-plugin</module>
         <module>aliyun-ons-1.x-plugin</module>
+        <module>aliyun-ons-2.x-plugin</module>
     </modules>
     <packaging>pom</packaging>
 
