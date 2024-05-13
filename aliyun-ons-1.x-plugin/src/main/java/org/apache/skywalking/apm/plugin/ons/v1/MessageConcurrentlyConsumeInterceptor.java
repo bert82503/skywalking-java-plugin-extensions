@@ -25,11 +25,16 @@ import org.apache.skywalking.apm.agent.core.context.tag.Tags;
 import org.apache.skywalking.apm.agent.core.context.trace.AbstractSpan;
 import org.apache.skywalking.apm.agent.core.plugin.interceptor.enhance.EnhancedInstance;
 
+/**
+ * {@link MessageConcurrentlyConsumeInterceptor} set the process status after the {@link
+ * com.aliyun.openservices.shade.com.alibaba.rocketmq.client.consumer.listener.MessageListenerConcurrently#consumeMessage(java.util.List,
+ * com.aliyun.openservices.shade.com.alibaba.rocketmq.client.consumer.listener.ConsumeConcurrentlyContext)} method execute.
+ */
 public class MessageConcurrentlyConsumeInterceptor extends AbstractMessageConsumeInterceptor {
 
     @Override
     public Object afterMethod(EnhancedInstance objInst, Method method, Object[] allArguments, Class<?>[] argumentsTypes,
-                              Object ret) throws Throwable {
+        Object ret) throws Throwable {
         ConsumeConcurrentlyStatus status = (ConsumeConcurrentlyStatus) ret;
         if (status == ConsumeConcurrentlyStatus.RECONSUME_LATER) {
             AbstractSpan activeSpan = ContextManager.activeSpan();

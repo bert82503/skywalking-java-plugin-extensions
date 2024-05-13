@@ -19,43 +19,60 @@
 package org.apache.skywalking.apm.plugin.ons.v1;
 
 import com.aliyun.openservices.shade.com.alibaba.rocketmq.common.message.MessageExt;
+import com.aliyun.openservices.shade.org.apache.commons.lang3.StringUtils;
 import java.lang.reflect.Method;
 import java.util.List;
 import org.apache.skywalking.apm.agent.core.context.CarrierItem;
 import org.apache.skywalking.apm.agent.core.context.ContextCarrier;
 import org.apache.skywalking.apm.agent.core.context.ContextManager;
+import org.apache.skywalking.apm.agent.core.context.tag.Tags;
 import org.apache.skywalking.apm.agent.core.context.trace.AbstractSpan;
 import org.apache.skywalking.apm.agent.core.context.trace.SpanLayer;
 import org.apache.skywalking.apm.agent.core.plugin.interceptor.enhance.EnhancedInstance;
 import org.apache.skywalking.apm.agent.core.plugin.interceptor.enhance.InstanceMethodsAroundInterceptor;
 import org.apache.skywalking.apm.agent.core.plugin.interceptor.enhance.MethodInterceptResult;
 import org.apache.skywalking.apm.network.trace.component.ComponentsDefine;
+import org.apache.skywalking.apm.plugin.ons.v1.define.ConsumerEnhanceInfos;
 
+/**
+ * {@link AbstractMessageConsumeInterceptor} create entry span when the <code>consumeMessage</code> in the {@link
+ * com.aliyun.openservices.shade.com.alibaba.rocketmq.client.consumer.listener.MessageListenerConcurrently} and {@link
+ * com.aliyun.openservices.shade.com.alibaba.rocketmq.client.consumer.listener.MessageListenerOrderly} class.
+ */
 public abstract class AbstractMessageConsumeInterceptor implements InstanceMethodsAroundInterceptor {
 
     public static final String CONSUMER_OPERATION_NAME_PREFIX = "RocketMQ/";
 
     @Override
     public final void beforeMethod(EnhancedInstance objInst, Method method, Object[] allArguments,
-                                   Class<?>[] argumentsTypes, MethodInterceptResult result) throws Throwable {
+        Class<?>[] argumentsTypes, MethodInterceptResult result) throws Throwable {
         List<MessageExt> msgs = (List<MessageExt>) allArguments[0];
 
         ContextCarrier contextCarrier = getContextCarrierFromMessage(msgs.get(0));
-        AbstractSpan span = ContextManager.createEntrySpan(
-            CONSUMER_OPERATION_NAME_PREFIX + msgs.get(0)
-                                                 .getTopic() + "/Consumer", contextCarrier);
-
+        AbstractSpan span = ContextManager.createEntrySpan(CONSUMER_OPERATION_NAME_PREFIX + msgs.get(0)
+                                                                                                .getTopic() + "/Consumer", contextCarrier);
+        Tags.MQ_TOPIC.set(span, msgs.get(0).getTopic());
+        if (msgs.get(0).getStoreHost() != null) {
+            String brokerAddress = msgs.get(0).getStoreHost().toString();
+            brokerAddress = StringUtils.removeStart(brokerAddress, "/");
+            Tags.MQ_BROKER.set(span, brokerAddress);
+        }
         span.setComponent(ComponentsDefine.ROCKET_MQ_CONSUMER);
         SpanLayer.asMQ(span);
         for (int i = 1; i < msgs.size(); i++) {
             ContextManager.extract(getContextCarrierFromMessage(msgs.get(i)));
         }
 
+        Object skyWalkingDynamicField = objInst.getSkyWalkingDynamicField();
+        if (skyWalkingDynamicField != null) {
+            ConsumerEnhanceInfos consumerEnhanceInfos = (ConsumerEnhanceInfos) skyWalkingDynamicField;
+            span.setPeer(consumerEnhanceInfos.getNamesrvAddr());
+        }
     }
 
     @Override
     public final void handleMethodException(EnhancedInstance objInst, Method method, Object[] allArguments,
-                                            Class<?>[] argumentsTypes, Throwable t) {
+        Class<?>[] argumentsTypes, Throwable t) {
         ContextManager.activeSpan().log(t);
     }
 

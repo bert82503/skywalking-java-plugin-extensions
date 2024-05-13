@@ -24,6 +24,7 @@ import java.lang.reflect.Method;
 import org.apache.skywalking.apm.agent.core.context.CarrierItem;
 import org.apache.skywalking.apm.agent.core.context.ContextCarrier;
 import org.apache.skywalking.apm.agent.core.context.ContextManager;
+import org.apache.skywalking.apm.agent.core.context.tag.AbstractTag;
 import org.apache.skywalking.apm.agent.core.context.tag.Tags;
 import org.apache.skywalking.apm.agent.core.context.trace.AbstractSpan;
 import org.apache.skywalking.apm.agent.core.context.trace.SpanLayer;
@@ -37,21 +38,41 @@ import org.apache.skywalking.apm.util.StringUtil;
 import static com.aliyun.openservices.shade.com.alibaba.rocketmq.common.message.MessageDecoder.NAME_VALUE_SEPARATOR;
 import static com.aliyun.openservices.shade.com.alibaba.rocketmq.common.message.MessageDecoder.PROPERTY_SEPARATOR;
 
+/**
+ * {@link MessageSendInterceptor} create exit span when the method {@link com.aliyun.openservices.shade.com.alibaba.rocketmq.client.impl.MQClientAPIImpl#sendMessage(String,
+ * String, Message, com.aliyun.openservices.shade.com.alibaba.rocketmq.common.protocol.header.SendMessageRequestHeader, long,
+ * com.aliyun.openservices.shade.com.alibaba.rocketmq.client.impl.CommunicationMode, com.aliyun.openservices.shade.com.alibaba.rocketmq.client.producer.SendCallback,
+ * com.aliyun.openservices.shade.com.alibaba.rocketmq.client.impl.producer.TopicPublishInfo, com.aliyun.openservices.shade.com.alibaba.rocketmq.client.impl.factory.MQClientInstance,
+ * int, com.aliyun.openservices.shade.com.alibaba.rocketmq.client.hook.SendMessageContext, com.aliyun.openservices.shade.com.alibaba.rocketmq.client.impl.producer.DefaultMQProducerImpl)}
+ * execute.
+ */
 public class MessageSendInterceptor implements InstanceMethodsAroundInterceptor {
 
     public static final String ASYNC_SEND_OPERATION_NAME_PREFIX = "RocketMQ/";
 
+    private static final AbstractTag<String> MQ_MESSAGE_KEYS_TAG = Tags.ofKey("mq.message.keys");
+
+    private static final AbstractTag<String> MQ_MESSAGE_TAGS_TAG = Tags.ofKey("mq.message.tags");
+
     @Override
     public void beforeMethod(EnhancedInstance objInst, Method method, Object[] allArguments, Class<?>[] argumentsTypes,
-                             MethodInterceptResult result) throws Throwable {
+        MethodInterceptResult result) throws Throwable {
         Message message = (Message) allArguments[2];
         ContextCarrier contextCarrier = new ContextCarrier();
         String namingServiceAddress = String.valueOf(objInst.getSkyWalkingDynamicField());
-        AbstractSpan span = ContextManager.createExitSpan(
-            buildOperationName(message.getTopic()), contextCarrier, namingServiceAddress);
+        AbstractSpan span = ContextManager.createExitSpan(buildOperationName(message.getTopic()), contextCarrier, namingServiceAddress);
         span.setComponent(ComponentsDefine.ROCKET_MQ_PRODUCER);
         Tags.MQ_BROKER.set(span, (String) allArguments[0]);
         Tags.MQ_TOPIC.set(span, message.getTopic());
+        String keys = message.getKeys();
+        if (StringUtil.isNotBlank(keys)) {
+            span.tag(MQ_MESSAGE_KEYS_TAG, keys);
+        }
+        String tags = message.getTags();
+        if (StringUtil.isNotBlank(tags)) {
+            span.tag(MQ_MESSAGE_TAGS_TAG, tags);
+        }
+
         contextCarrier.extensionInjector().injectSendingTimestamp();
         SpanLayer.asMQ(span);
 
@@ -61,31 +82,33 @@ public class MessageSendInterceptor implements InstanceMethodsAroundInterceptor 
         while (next.hasNext()) {
             next = next.next();
             if (!StringUtil.isEmpty(next.getHeadValue())) {
+                if (properties.length() > 0 && properties.charAt(properties.length() - 1) != PROPERTY_SEPARATOR) {
+                    // adapt for RocketMQ 4.9.x or later
+                    properties.append(PROPERTY_SEPARATOR);
+                }
                 properties.append(next.getHeadKey());
                 properties.append(NAME_VALUE_SEPARATOR);
                 properties.append(next.getHeadValue());
-                properties.append(PROPERTY_SEPARATOR);
             }
         }
         requestHeader.setProperties(properties.toString());
 
         if (allArguments[6] != null) {
-            ((EnhancedInstance) allArguments[6]).setSkyWalkingDynamicField(
-                new SendCallBackEnhanceInfo(message.getTopic(), ContextManager
-                    .capture()));
+            ((EnhancedInstance) allArguments[6]).setSkyWalkingDynamicField(new SendCallBackEnhanceInfo(message.getTopic(), ContextManager
+                .capture()));
         }
     }
 
     @Override
     public Object afterMethod(EnhancedInstance objInst, Method method, Object[] allArguments, Class<?>[] argumentsTypes,
-                              Object ret) throws Throwable {
+        Object ret) throws Throwable {
         ContextManager.stopSpan();
         return ret;
     }
 
     @Override
     public void handleMethodException(EnhancedInstance objInst, Method method, Object[] allArguments,
-                                      Class<?>[] argumentsTypes, Throwable t) {
+        Class<?>[] argumentsTypes, Throwable t) {
         ContextManager.activeSpan().log(t);
     }
 

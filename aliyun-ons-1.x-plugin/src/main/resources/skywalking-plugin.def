@@ -18,3 +18,4 @@ aliyun-ons-1.x=org.apache.skywalking.apm.plugin.ons.v1.define.ConsumeMessageConc
 aliyun-ons-1.x=org.apache.skywalking.apm.plugin.ons.v1.define.ConsumeMessageOrderlyInstrumentation
 aliyun-ons-1.x=org.apache.skywalking.apm.plugin.ons.v1.define.MQClientAPIImplInstrumentation
 aliyun-ons-1.x=org.apache.skywalking.apm.plugin.ons.v1.define.SendCallbackInstrumentation
+aliyun-ons-1.x=org.apache.skywalking.apm.plugin.ons.v1.define.DefaultMQPushConsumerInstrumentation

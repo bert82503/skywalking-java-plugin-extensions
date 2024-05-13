@@ -25,17 +25,14 @@ import org.apache.skywalking.apm.agent.core.plugin.interceptor.InstanceMethodsIn
 import org.apache.skywalking.apm.agent.core.plugin.match.ClassMatch;
 
 import static net.bytebuddy.matcher.ElementMatchers.named;
-import static net.bytebuddy.matcher.ElementMatchers.takesArguments;
 import static org.apache.skywalking.apm.agent.core.plugin.match.NameMatch.byName;
 import static org.apache.skywalking.apm.plugin.ons.v1.define.Constants.SHADE_PACKAGE;
 
-public class MQClientAPIImplInstrumentation extends AbstractRocketMQInstrumentation {
+public class DefaultMQPushConsumerInstrumentation extends AbstractRocketMQInstrumentation {
 
-    private static final String ENHANCE_CLASS = SHADE_PACKAGE + "com.alibaba.rocketmq.client.impl.MQClientAPIImpl";
-    private static final String SEND_MESSAGE_METHOD_NAME = "sendMessage";
-    private static final String ASYNC_METHOD_INTERCEPTOR = "org.apache.skywalking.apm.plugin.ons.v1.MessageSendInterceptor";
-    public static final String UPDATE_NAME_SERVER_INTERCEPT_CLASS = "org.apache.skywalking.apm.plugin.ons.v1.UpdateNameServerInterceptor";
-    public static final String UPDATE_NAME_SERVER_METHOD_NAME = "updateNameServerAddressList";
+    private static final String ENHANCE_CLASS = SHADE_PACKAGE + "com.alibaba.rocketmq.client.consumer.DefaultMQPushConsumer";
+    private static final String REGISTER_MESSAGE_LISTENER_METHOD_NAME = "registerMessageListener";
+    public static final String REGISTER_MESSAGE_LISTENER_INTERCEPT_CLASS = "org.apache.skywalking.apm.plugin.ons.v1.RegisterMessageListenerInterceptor";
 
     @Override
     public ConstructorInterceptPoint[] getConstructorsInterceptPoints() {
@@ -45,38 +42,22 @@ public class MQClientAPIImplInstrumentation extends AbstractRocketMQInstrumentat
     @Override
     public InstanceMethodsInterceptPoint[] getInstanceMethodsInterceptPoints() {
         return new InstanceMethodsInterceptPoint[] {
-            new InstanceMethodsInterceptPoint() {
-                @Override
-                public ElementMatcher<MethodDescription> getMethodsMatcher() {
-                    return named(SEND_MESSAGE_METHOD_NAME).and(takesArguments(12));
-                }
+                new InstanceMethodsInterceptPoint() {
+                    @Override
+                    public ElementMatcher<MethodDescription> getMethodsMatcher() {
+                        return named(REGISTER_MESSAGE_LISTENER_METHOD_NAME);
+                    }
 
-                @Override
-                public String getMethodsInterceptor() {
-                    return ASYNC_METHOD_INTERCEPTOR;
-                }
+                    @Override
+                    public String getMethodsInterceptor() {
+                        return REGISTER_MESSAGE_LISTENER_INTERCEPT_CLASS;
+                    }
 
-                @Override
-                public boolean isOverrideArgs() {
-                    return false;
+                    @Override
+                    public boolean isOverrideArgs() {
+                        return false;
+                    }
                 }
-            },
-            new InstanceMethodsInterceptPoint() {
-                @Override
-                public ElementMatcher<MethodDescription> getMethodsMatcher() {
-                    return named(UPDATE_NAME_SERVER_METHOD_NAME);
-                }
-
-                @Override
-                public String getMethodsInterceptor() {
-                    return UPDATE_NAME_SERVER_INTERCEPT_CLASS;
-                }
-
-                @Override
-                public boolean isOverrideArgs() {
-                    return false;
-                }
-            }
         };
     }
 
@@ -84,4 +65,5 @@ public class MQClientAPIImplInstrumentation extends AbstractRocketMQInstrumentat
     protected ClassMatch enhanceClass() {
         return byName(ENHANCE_CLASS);
     }
+    
 }
